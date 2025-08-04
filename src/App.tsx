@@ -1,5 +1,5 @@
 import './App.css'
-import OriginTestResults from './components/OriginTestResults'
+// #import OriginTestResults from './components/OriginTestResults'
 import OriginTestResultss from './components/OriginTestResultss'
 
 

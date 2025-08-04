@@ -14,7 +14,7 @@ import moment from "moment";
 import type { Moment } from "moment";
 import { CalendarOutlined } from "@ant-design/icons";
 import originCodes from "../originCodes";
- 
+
 // --- Mocked Utility Functions ---
 const withToasts =
   <P extends object>(Component: React.ComponentType<P>) =>
@@ -25,7 +25,7 @@ const fetchData = (query: string) => {
   return Promise.resolve({ success: true });
 };
 // -------------------------------------------------------------------
- 
+
 // Custom component for the grey section headers
 const SectionHeader = ({ title }: { title: string }) => (
   <div
@@ -42,16 +42,12 @@ const SectionHeader = ({ title }: { title: string }) => (
     {title.toUpperCase()}
   </div>
 );
- 
+
 interface OriginTestResultsProps {
   closeForm?: () => void;
 }
- 
+
 interface OriginTestResultsValues {
-  /**
-   * This form is linked in src/features/Pellet/index.tsx and is shown when activeFormButton === 6.
-   * To show this form, set activeFormButton to 6 in the parent Pellet component.
-   */
   date: Moment;
   user: string;
   originCode: string;
@@ -79,7 +75,7 @@ interface OriginTestResultsValues {
   forceToBreakGrams: string;
   forceToBreakLbs: string;
 }
- 
+
 const defaultFormValues: Partial<OriginTestResultsValues> = {
   date: moment(),
   user: "",
@@ -108,7 +104,7 @@ const defaultFormValues: Partial<OriginTestResultsValues> = {
   percentPan: "0.00 %",
   totalPercent: "0.00 %",
 };
- 
+
 const sieveGramFields = [
   "grams8Mesh",
   "grams14Mesh",
@@ -119,68 +115,72 @@ const sieveGramFields = [
   "grams50Mesh",
   "gramsBottomPan",
 ];
- 
+
 function OriginTestResultss(props: OriginTestResultsProps) {
   const [form] = Form.useForm<OriginTestResultsValues>();
   const [users, setUsers] = useState<{ user: string }[]>([]);
- 
+
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const response = await fetch("/api/users");
-        if (!response.ok) throw new Error("Failed to fetch users");
-        console.log("Fetching users from server...");
-        const data = await response.json();
-        setUsers(data);
-      } catch (error) {
-        console.error("Failed to fetch users:", error);
-        notification.error({
-          message: "Failed to load users",
-          description: "Could not fetch user data from the server.",
-        });
-      }
-    };
- 
-    fetchUsers();
-  }, []);
- 
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch("/api/users");
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      console.log("API Response:", data); 
+      // Map the response to match the expected { user: string } structure
+      const formattedUsers = data.map((item: { username: string }) => ({
+      user: item.username,
+      }));
+setUsers(formattedUsers);
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+      notification.error({
+        message: "Failed to load users",
+        description: "Could not fetch user data from the server. Check console for details.",
+      });
+    }
+  };
+
+  fetchUsers();
+}, []);
+
   const openNotification = (placement: any) => {
     notification.success({
       message: `Origin Data saved successfully`,
       placement,
     });
   };
- 
+
   const handleValuesChange = (
     changedValues: Partial<OriginTestResultsValues>,
     allValues: OriginTestResultsValues
   ) => {
     const changedField = Object.keys(changedValues)[0];
- 
+
     if (changedField === "gramsPerQuart") {
       const grams = parseFloat(changedValues.gramsPerQuart ?? "") || 0;
       const lbs = grams * 0.065967;
       form.setFieldsValue({ lbsPerCubicFoot: lbs.toFixed(4) });
     }
- 
+
     if (changedField === "forceToBreakGrams") {
       const grams = parseFloat(changedValues.forceToBreakGrams ?? "") || 0;
       const lbs = grams * 0.002205;
       form.setFieldsValue({ forceToBreakLbs: lbs.toFixed(4) });
     }
- 
+
     if (sieveGramFields.includes(changedField)) {
       const allValuesAny = allValues as Record<string, any>;
       const gramValues = sieveGramFields.map(
         (field) => parseFloat(allValuesAny[field]) || 0
       );
       const totalGrams = gramValues.reduce((sum, val) => sum + val, 0);
- 
+
       const calculatePercent = (grams: number) =>
         totalGrams > 0 ? (grams / totalGrams) * 100 : 0;
       const percentages = gramValues.map(calculatePercent);
       const totalPercent = percentages.reduce((sum, val) => sum + val, 0);
- 
+
       form.setFieldsValue({
         totalGrams: totalGrams.toFixed(1),
         percent8Mesh: `${percentages[0].toFixed(2)} %`,
@@ -195,7 +195,7 @@ function OriginTestResultss(props: OriginTestResultsProps) {
       });
     }
   };
- 
+
   const newForm = () => {
     form.resetFields();
     form.setFieldsValue({
@@ -203,7 +203,7 @@ function OriginTestResultss(props: OriginTestResultsProps) {
       date: moment(),
     });
   };
- 
+
   const onSubmitForm = async () => {
     try {
       const values = await form.validateFields();
@@ -238,7 +238,7 @@ function OriginTestResultss(props: OriginTestResultsProps) {
       console.log("Validation Failed:", error);
     }
   };
- 
+
   const handleClose = () => {
     if (props.closeForm) {
       props.closeForm();
@@ -246,7 +246,7 @@ function OriginTestResultss(props: OriginTestResultsProps) {
       console.log("Form closed");
     }
   };
- 
+
   return (
     <ConfigProvider>
       <div
@@ -277,7 +277,7 @@ function OriginTestResultss(props: OriginTestResultsProps) {
             <h1 style={{ textAlign: "center", marginBottom: "24px" }}>
               Origin Test Results Form
             </h1>
- 
+
             {/* --- General Information --- */}
             <Row gutter={24}>
               <Col span={12}>
@@ -319,7 +319,7 @@ function OriginTestResultss(props: OriginTestResultsProps) {
                 </Form.Item>
               </Col>
             </Row>
- 
+
             {/* --- Bulk Density --- */}
             <SectionHeader title="BULK DENSITY" />
             <Row gutter={24}>
@@ -337,7 +337,7 @@ function OriginTestResultss(props: OriginTestResultsProps) {
                 </Form.Item>
               </Col>
             </Row>
- 
+
             {/* --- Hardness --- */}
             <SectionHeader title="HARDNESS" />
             <Row gutter={24}>
@@ -358,7 +358,7 @@ function OriginTestResultss(props: OriginTestResultsProps) {
                 </Form.Item>
               </Col>
             </Row>
- 
+
             {/* --- Sieve Analysis --- */}
             <SectionHeader title="SIEVE ANALYSIS" />
             <Row gutter={24}>
@@ -451,7 +451,7 @@ function OriginTestResultss(props: OriginTestResultsProps) {
                 </Form.Item>
               </Col>
             </Row>
- 
+
             {/* --- Action Buttons --- */}
             <div
               style={{
@@ -493,5 +493,5 @@ function OriginTestResultss(props: OriginTestResultsProps) {
     </ConfigProvider>
   );
 }
- 
+
 export default withToasts(OriginTestResultss);
