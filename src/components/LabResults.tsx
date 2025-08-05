@@ -1,3 +1,38 @@
+// Helper to build SQL insert query string for legacy API
+function sqlValue(val: string, isPercent = false) {
+  if (!val || val.trim() === "") return "NULL";
+  if (isPercent) {
+    // Remove % and spaces, then return as number string
+    return `'${val.replace(/[%\s]/g, "")}'`;
+  }
+  return `'${val}'`;
+}
+function buildInsertQuery(values: OriginTestResultsValues) {
+  return `INSERT INTO Origin_Testing (
+    \`Date\`, \`User\`, \`Load_Number\`, \`Origin\`, \`grams_per_quart\`, \`lbs_per_cubic_foot\`,
+    \`8Mesh\`, \`14Mesh\`, \`16Mesh\`, \`20Mesh\`, \`30Mesh\`, \`40Mesh\`, \`50Mesh\`, \`Pan\`,
+    \`total_grams\`, \`total_percent\`, \`force_to_break_grams\`, \`force_to_break_lbs\`
+  ) VALUES (
+    '${values.date.format("YYYY-MM-DD")}',
+    '${values.user}',
+    '${values.loadNumber}',
+    '${values.originCode}',
+    ${sqlValue(values.gramsPerQuart)},
+    ${sqlValue(values.lbsPerCubicFoot)},
+    ${sqlValue(values.grams8Mesh)},
+    ${sqlValue(values.grams14Mesh)},
+    ${sqlValue(values.grams16Mesh)},
+    ${sqlValue(values.grams20Mesh)},
+    ${sqlValue(values.grams30Mesh)},
+    ${sqlValue(values.grams40Mesh)},
+    ${sqlValue(values.grams50Mesh)},
+    ${sqlValue(values.gramsBottomPan)},
+    ${sqlValue(values.totalGrams)},
+    ${sqlValue(values.totalPercent, true)},
+    ${sqlValue(values.forceToBreakGrams)},
+    ${sqlValue(values.forceToBreakLbs)}
+  );`;
+}
 import React, { useState, useEffect } from "react";
 import {
   Col,
@@ -20,10 +55,7 @@ const withToasts =
   <P extends object>(Component: React.ComponentType<P>) =>
   (props: P) =>
     <Component {...props} />; // Mock HOC
-const fetchData = (query: string) => {
-  console.log("Executing Mock Fetch:", query);
-  return Promise.resolve({ success: true });
-};
+// Removed fetchData. Use real API call in onSubmitForm.
 // -------------------------------------------------------------------
 
 // Custom component for the grey section headers
@@ -116,7 +148,7 @@ const sieveGramFields = [
   "gramsBottomPan",
 ];
 
-function OriginTestResultss(props: OriginTestResultsProps) {
+function LabResults(props: OriginTestResultsProps) {
   const [form] = Form.useForm<OriginTestResultsValues>();
   const [users, setUsers] = useState<{ user: string }[]>([]);
 
@@ -207,35 +239,23 @@ setUsers(formattedUsers);
   const onSubmitForm = async () => {
     try {
       const values = await form.validateFields();
-      const insertQuery = `INSERT INTO Origin_Testing (
-        [Date], [User], [Load Number], [Origin], [grams_per_quart], [lbs_per_cubic_foot],
-        [8Mesh], [14Mesh], [16Mesh], [20Mesh], [30Mesh], [40Mesh], [50Mesh], [Pan],
-        [totalGrams], [totalPercent], [Force to Break (Grams)], [Force to Break (Lbs)]
-      ) VALUES (
-        '${values.date.format("YYYY-MM-DD")}',
-        '${values.user}',
-        '${values.loadNumber}',
-        '${values.originCode}',
-        '${values.gramsPerQuart}',
-        '${values.lbsPerCubicFoot}',
-        '${values.grams8Mesh}',
-        '${values.grams14Mesh}',
-        '${values.grams16Mesh}',
-        '${values.grams20Mesh}',
-        '${values.grams30Mesh}',
-        '${values.grams40Mesh}',
-        '${values.grams50Mesh}',
-        '${values.gramsBottomPan}',
-        '${values.totalGrams}',
-        '${values.totalPercent}',
-        '${values.forceToBreakGrams}',
-        '${values.forceToBreakLbs}'
-      );`;
-      await fetchData(insertQuery);
-      openNotification("bottomRight");
-      newForm();
+      const insertQuery = buildInsertQuery(values);
+      const response = await fetch("/api/lab-results", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: insertQuery, params: [] }),
+      });
+      const result = await response.json();
+      console.log("API result:", result);
+      if (result.success) {
+        openNotification("bottomRight");
+        newForm();
+      } else {
+        notification.error({ message: result.error || "Failed to save data" });
+      }
     } catch (error) {
-      console.log("Validation Failed:", error);
+      console.log("Validation Failed or Network Error:", error);
+      notification.error({ message: "Network or Validation Error", description: (error && (error as any).message) || String(error) });
     }
   };
 
@@ -275,7 +295,7 @@ setUsers(formattedUsers);
             onValuesChange={handleValuesChange}
           >
             <h1 style={{ textAlign: "center", marginBottom: "24px" }}>
-              Origin Test Results Form
+              LAB Form
             </h1>
 
             {/* --- General Information --- */}
@@ -494,4 +514,4 @@ setUsers(formattedUsers);
   );
 }
 
-export default withToasts(OriginTestResultss);
+export default withToasts(LabResults);
