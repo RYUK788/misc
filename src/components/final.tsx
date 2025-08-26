@@ -1,23 +1,3 @@
-/**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-/* eslint-disable no-console */
-
 import React, { useState, useEffect } from "react";
 import {
   Col,
@@ -33,17 +13,51 @@ import {
 import moment from "moment";
 import type { Moment } from "moment";
 import { CalendarOutlined } from "@ant-design/icons";
-import originCodes from "../originCodes";
+import { fetchData } from 'src/features/Pellet/Apis';
+import originCodes from "./originCodes";
 
-// --- Mocked Utility Functions  ---
+// Helper to build SQL insert query string for legacy API
+function sqlValue(val: string, isPercent = false) {
+  if (!val || val.trim() === "") return "NULL";
+  if (isPercent) {
+    // Remove % and spaces, then return as number string
+    return `'${val.replace(/[%\s]/g, "")}'`;
+  }
+  return `'${val}'`;
+}
+function buildInsertQuery(values: OriginTestResultsValues) {
+  return `INSERT INTO Origin_Testing (
+    \`Date\`, \`User\`, \`Load_Number\`, \`Origin\`, \`grams_per_quart\`, \`lbs_per_cubic_foot\`,
+    \`8Mesh\`, \`14Mesh\`, \`16Mesh\`, \`20Mesh\`, \`30Mesh\`, \`40Mesh\`, \`50Mesh\`, \`Pan\`,
+    \`total_grams\`, \`total_percent\`, \`force_to_break_grams\`, \`force_to_break_lbs\`
+  ) VALUES (
+    '${values.date.format("YYYY-MM-DD")}',
+    '${values.user}',
+    '${values.loadNumber}',
+    '${values.originCode}',
+    ${sqlValue(values.gramsPerQuart)},
+    ${sqlValue(values.lbsPerCubicFoot)},
+    ${sqlValue(values.grams8Mesh)},
+    ${sqlValue(values.grams14Mesh)},
+    ${sqlValue(values.grams16Mesh)},
+    ${sqlValue(values.grams20Mesh)},
+    ${sqlValue(values.grams30Mesh)},
+    ${sqlValue(values.grams40Mesh)},
+    ${sqlValue(values.grams50Mesh)},
+    ${sqlValue(values.gramsBottomPan)},
+    ${sqlValue(values.totalGrams)},
+    ${sqlValue(values.totalPercent, true)},
+    ${sqlValue(values.forceToBreakGrams)},
+    ${sqlValue(values.forceToBreakLbs)}
+  );`;
+}
+
+// --- Mocked Utility Functions ---
 const withToasts =
   <P extends object>(Component: React.ComponentType<P>) =>
   (props: P) =>
     <Component {...props} />; // Mock HOC
-const fetchData = (query: string) => {
-  console.log("Executing Mock Fetch:", query);
-  return Promise.resolve({ success: true });
-};
+// Removed fetchData. Use real API call in onSubmitForm.
 // -------------------------------------------------------------------
 
 // Custom component for the grey section headers
@@ -68,10 +82,6 @@ interface OriginTestResultsProps {
 }
 
 interface OriginTestResultsValues {
-  /**
-   * This form is linked in src/features/Pellet/index.tsx and is shown when activeFormButton === 6.
-   * To show this form, set activeFormButton to 6 in the parent Pellet component.
-   */
   date: Moment;
   user: string;
   originCode: string;
@@ -140,22 +150,26 @@ const sieveGramFields = [
   "gramsBottomPan",
 ];
 
-function OriginTestResults(props: OriginTestResultsProps) {
+function LabResults(props: OriginTestResultsProps) {
   const [form] = Form.useForm<OriginTestResultsValues>();
-  // State to hold user data fetched from the server
   const [users, setUsers] = useState<{ user: string }[]>([]);
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await fetch("/api/users");
-        const data = await response.json();
-        setUsers(data);
+        const data = await fetchData(
+          "SELECT `username` FROM broan.`ab_user`"
+        );
+        const formattedUsers = data.map((item: { username: string }) => ({
+          user: item.username,
+        }));
+        setUsers(formattedUsers);
       } catch (error) {
         console.error("Failed to fetch users:", error);
         notification.error({
           message: "Failed to load users",
-          description: "Could not fetch user data from the server.",
+          description:
+            "Could not fetch user data from the server. Check console for details.",
         });
       }
     };
@@ -174,19 +188,20 @@ function OriginTestResults(props: OriginTestResultsProps) {
     changedValues: Partial<OriginTestResultsValues>,
     allValues: OriginTestResultsValues
   ) => {
-    const changedField = Object.keys(changedValues)[0]; // 1. Bulk Density Calculation 
+    const changedField = Object.keys(changedValues)[0];
 
     if (changedField === "gramsPerQuart") {
       const grams = parseFloat(changedValues.gramsPerQuart ?? "") || 0;
       const lbs = grams * 0.065967;
       form.setFieldsValue({ lbsPerCubicFoot: lbs.toFixed(4) });
-    } // 2. Hardness Calculation (LOGIC UNCHANGED)
+    }
 
     if (changedField === "forceToBreakGrams") {
       const grams = parseFloat(changedValues.forceToBreakGrams ?? "") || 0;
       const lbs = grams * 0.002205;
       form.setFieldsValue({ forceToBreakLbs: lbs.toFixed(4) });
-    } // 3. Sieve Analysis Calculation (LOGIC UNCHANGED)
+    }
+
     if (sieveGramFields.includes(changedField)) {
       const allValuesAny = allValues as Record<string, any>;
       const gramValues = sieveGramFields.map(
@@ -213,46 +228,35 @@ function OriginTestResults(props: OriginTestResultsProps) {
       });
     }
   };
+
   const newForm = () => {
     form.resetFields();
     form.setFieldsValue({
       ...defaultFormValues,
-      date: moment(), // Ensure date is reset to today
+      date: moment(),
     });
   };
 
   const onSubmitForm = async () => {
     try {
-      const values = await form.validateFields(); // SQL INSERT QUERY LOGIC TO BE CHANGED
-      const insertQuery = `INSERT INTO Origin_Testing (
-      [Date], [User], [Load Number], [Origin], [grams_per_quart], [lbs_per_cubic_foot],
-      [8Mesh], [14Mesh], [16Mesh], [20Mesh], [30Mesh], [40Mesh], [50Mesh], [Pan],
-      [totalGrams], [totalPercent], [Force to Break (Grams)], [Force to Break (Lbs)]    
-      ) VALUES (
-        '${values.date.format("YYYY-MM-DD")}',
-        '${values.user}',
-        '${values.loadNumber}',
-        '${values.originCode}',
-        '${values.gramsPerQuart}',
-        '${values.lbsPerCubicFoot}',
-        '${values.grams8Mesh}',
-        '${values.grams14Mesh}',
-        '${values.grams16Mesh}',
-        '${values.grams20Mesh}',
-        '${values.grams30Mesh}',
-        '${values.grams40Mesh}',
-        '${values.grams50Mesh}',
-        '${values.gramsBottomPan}',
-        '${values.totalGrams}',
-        '${values.totalPercent}',
-        '${values.forceToBreakGrams}',
-        '${values.forceToBreakLbs}'
-      );`;
-      await fetchData(insertQuery);
-      openNotification("bottomRight");
-      newForm();
+      const values = await form.validateFields();
+      const insertQuery = buildInsertQuery(values);
+      const result = await fetchData(insertQuery);
+
+      console.log("API result:", result);
+
+      if (result.success) {
+        openNotification("bottomRight");
+        newForm();
+      } else {
+        notification.error({ message: result.error || "Failed to save data" });
+      }
     } catch (error) {
-      console.log("Validation Failed:", error);
+      console.log("Validation Failed or Network Error:", error);
+      notification.error({
+        message: "Network or Validation Error",
+        description: (error && (error as any).message) || String(error),
+      });
     }
   };
 
@@ -266,7 +270,6 @@ function OriginTestResults(props: OriginTestResultsProps) {
 
   return (
     <ConfigProvider>
-           
       <div
         style={{
           padding: "24px",
@@ -274,7 +277,6 @@ function OriginTestResults(props: OriginTestResultsProps) {
           minHeight: "100vh",
         }}
       >
-               
         <div
           style={{
             maxWidth: "1200px",
@@ -285,23 +287,20 @@ function OriginTestResults(props: OriginTestResultsProps) {
             boxShadow: "none",
           }}
         >
-                   
           <Form
             form={form}
-            layout="horizontal" 
-            labelCol={{ span: 10 }} 
-            wrapperCol={{ span: 14 }} 
+            layout="horizontal"
+            labelCol={{ span: 10 }}
+            wrapperCol={{ span: 14 }}
             initialValues={defaultFormValues}
             onValuesChange={handleValuesChange}
           >
-                       
             <h1 style={{ textAlign: "center", marginBottom: "24px" }}>
-              Origin Test Results Form
+              LAB Form
             </h1>
-                                     {/* --- General Information --- */}       
-               
+
+            {/* --- General Information --- */}
             <Row gutter={24}>
-                           
               <Col span={12}>
                 <Form.Item label="Date" name="date">
                   <DatePicker
@@ -310,11 +309,9 @@ function OriginTestResults(props: OriginTestResultsProps) {
                   />
                 </Form.Item>
               </Col>
-              {/*     User Dropdown Here           */}
-
               <Col span={12}>
                 <Form.Item label="User" name="user">
-                  <Select placeholder="Select User">
+                  <Select placeholder="Select User" style={{ width: 300 }}>
                     {users.map((u) => (
                       <Select.Option key={u.user} value={u.user}>
                         {u.user}
@@ -323,10 +320,9 @@ function OriginTestResults(props: OriginTestResultsProps) {
                   </Select>
                 </Form.Item>
               </Col>
-                           
               <Col span={12}>
                 <Form.Item label="Origin Code" name="originCode">
-                  <Select placeholder="Select Code">
+                  <Select placeholder="Select Code" style={{ width: 300 }}>
                     {[...originCodes].map((code) => (
                       <Select.Option key={code} value={code.split(" ")[0]}>
                         {code}
@@ -335,7 +331,6 @@ function OriginTestResults(props: OriginTestResultsProps) {
                   </Select>
                 </Form.Item>
               </Col>
-                           
               <Col span={12}>
                 <Form.Item label="Load Number" name="loadNumber">
                   <Input
@@ -344,9 +339,9 @@ function OriginTestResults(props: OriginTestResultsProps) {
                   />
                 </Form.Item>
               </Col>
-                         
             </Row>
-                        {/* --- Bulk Density --- */}
+
+            {/* --- Bulk Density --- */}
             <SectionHeader title="BULK DENSITY" />
             <Row gutter={24}>
               <Col span={12}>
@@ -363,7 +358,8 @@ function OriginTestResults(props: OriginTestResultsProps) {
                 </Form.Item>
               </Col>
             </Row>
-                        {/* --- Hardness --- */}
+
+            {/* --- Hardness --- */}
             <SectionHeader title="HARDNESS" />
             <Row gutter={24}>
               <Col span={12}>
@@ -383,10 +379,10 @@ function OriginTestResults(props: OriginTestResultsProps) {
                 </Form.Item>
               </Col>
             </Row>
-                        {/* --- Sieve Analysis --- */}
-            <SectionHeader title="SIEVE ANALYSIS" />           
+
+            {/* --- Sieve Analysis --- */}
+            <SectionHeader title="SIEVE ANALYSIS" />
             <Row gutter={24}>
-                             
               <Col span={12}>
                 <Form.Item label="Grams in 8 Mesh Pan" name="grams8Mesh">
                   <Input type="number" placeholder="XXX.X" />
@@ -412,16 +408,13 @@ function OriginTestResults(props: OriginTestResultsProps) {
                 <Form.Item label="Grams in Bottom Pan" name="gramsBottomPan">
                   <Input type="number" placeholder="XXX.X" />
                 </Form.Item>
-                                 
                 <Form.Item label="Total Grams" name="totalGrams">
                   <Input
                     readOnly
                     style={{ backgroundColor: "#f5f5f5", color: "#666" }}
                   />
                 </Form.Item>
-                               
               </Col>
-                             
               <Col span={12}>
                 <Form.Item label="8 Mesh %" name="percent8Mesh">
                   <Input
@@ -471,18 +464,16 @@ function OriginTestResults(props: OriginTestResultsProps) {
                     style={{ backgroundColor: "#f5f5f5", color: "#666" }}
                   />
                 </Form.Item>
-                                 
                 <Form.Item label="Total % Check" name="totalPercent">
                   <Input
                     readOnly
                     style={{ backgroundColor: "#f5f5f5", color: "#666" }}
                   />
                 </Form.Item>
-                               
               </Col>
-                           
             </Row>
-                        {/* --- Action Buttons --- */}           
+
+            {/* --- Action Buttons --- */}
             <div
               style={{
                 display: "flex",
@@ -490,7 +481,6 @@ function OriginTestResults(props: OriginTestResultsProps) {
                 marginTop: "24px",
               }}
             >
-                           
               <AntButton
                 type="default"
                 size="large"
@@ -499,9 +489,7 @@ function OriginTestResults(props: OriginTestResultsProps) {
               >
                 New
               </AntButton>
-                           
               <div>
-                               
                 <AntButton
                   type="default"
                   size="large"
@@ -510,7 +498,6 @@ function OriginTestResults(props: OriginTestResultsProps) {
                 >
                   Close
                 </AntButton>
-                               
                 <AntButton
                   type="primary"
                   size="large"
@@ -519,19 +506,13 @@ function OriginTestResults(props: OriginTestResultsProps) {
                 >
                   Save
                 </AntButton>
-                             
               </div>
-                         
             </div>
-                     
           </Form>
-                 
         </div>
-             
       </div>
-         
     </ConfigProvider>
   );
 }
 
-export default withToasts(OriginTestResults);
+export default withToasts(LabResults);

@@ -1,38 +1,3 @@
-// Helper to build SQL insert query string for legacy API
-function sqlValue(val: string, isPercent = false) {
-  if (!val || val.trim() === "") return "NULL";
-  if (isPercent) {
-    // Remove % and spaces, then return as number string
-    return `'${val.replace(/[%\s]/g, "")}'`;
-  }
-  return `'${val}'`;
-}
-function buildInsertQuery(values: OriginTestResultsValues) {
-  return `INSERT INTO Origin_Testing (
-    \`Date\`, \`User\`, \`Load_Number\`, \`Origin\`, \`grams_per_quart\`, \`lbs_per_cubic_foot\`,
-    \`8Mesh\`, \`14Mesh\`, \`16Mesh\`, \`20Mesh\`, \`30Mesh\`, \`40Mesh\`, \`50Mesh\`, \`Pan\`,
-    \`total_grams\`, \`total_percent\`, \`force_to_break_grams\`, \`force_to_break_lbs\`
-  ) VALUES (
-    '${values.date.format("YYYY-MM-DD")}',
-    '${values.user}',
-    '${values.loadNumber}',
-    '${values.originCode}',
-    ${sqlValue(values.gramsPerQuart)},
-    ${sqlValue(values.lbsPerCubicFoot)},
-    ${sqlValue(values.grams8Mesh)},
-    ${sqlValue(values.grams14Mesh)},
-    ${sqlValue(values.grams16Mesh)},
-    ${sqlValue(values.grams20Mesh)},
-    ${sqlValue(values.grams30Mesh)},
-    ${sqlValue(values.grams40Mesh)},
-    ${sqlValue(values.grams50Mesh)},
-    ${sqlValue(values.gramsBottomPan)},
-    ${sqlValue(values.totalGrams)},
-    ${sqlValue(values.totalPercent, true)},
-    ${sqlValue(values.forceToBreakGrams)},
-    ${sqlValue(values.forceToBreakLbs)}
-  );`;
-}
 import React, { useState, useEffect } from "react";
 import {
   Col,
@@ -48,7 +13,46 @@ import {
 import moment from "moment";
 import type { Moment } from "moment";
 import { CalendarOutlined } from "@ant-design/icons";
-import originCodes from "../originCodes";
+import originCodes from "./originCodes";
+
+
+
+
+function sqlValue(val: string, isPercent = false) {
+  if (!val || val.trim() === "") return "NULL";
+  if (isPercent) {
+    // Remove % and spaces, then return as number string
+    return `'${val.replace(/[%\s]/g, "")}'`;
+  }
+  return `'${val}'`;
+}
+function buildInsertQuery(values: OriginTestResultsValues) {
+  return `INSERT INTO Origin_Testing (
+    \`Date\`, \`User\`, \`Load_Number\`, \`Origin\`, \`grams_per_quart\`, \`lbs_per_cubic_foot\`,
+    \`8Mesh\`, \`14Mesh\`, \`16Mesh\`, \`20Mesh\`, \`30Mesh\`, \`40Mesh\`, \`50Mesh\`, \`Pan\`,
+    \`total_grams\`, \`total_percent\`, \`force_to_break_grams\`, \`force_to_break_lbs\`
+  ) VALUES (
+    \'${values.date.format("YYYY-MM-DD")}\',
+    \'${values.user}\',
+    \'${values.loadNumber}\',
+    \'${values.originCode}\',
+    ${sqlValue(values.gramsPerQuart,true)},
+    ${sqlValue(values.lbsPerCubicFoot,true)},
+    ${sqlValue(values.percent8Mesh,true)},
+    ${sqlValue(values.percent14Mesh,true)},
+    ${sqlValue(values.percent16Mesh,true)},
+    ${sqlValue(values.percent20Mesh,true)},
+    ${sqlValue(values.percent30Mesh,true)},
+    ${sqlValue(values.percent40Mesh,true)},
+    ${sqlValue(values.percent50Mesh),true},
+    ${sqlValue(values.percentPan,true)},
+    ${sqlValue(values.totalGrams)},
+    ${sqlValue(values.totalPercent, true)},
+    ${sqlValue(values.forceToBreakGrams)},
+    ${sqlValue(values.forceToBreakLbs)}
+  );`;
+}
+
 
 // --- Mocked Utility Functions ---
 const withToasts =
@@ -295,7 +299,7 @@ setUsers(formattedUsers);
             onValuesChange={handleValuesChange}
           >
             <h1 style={{ textAlign: "center", marginBottom: "24px" }}>
-              LAB Form
+              Origin Results Form
             </h1>
 
             {/* --- General Information --- */}
@@ -310,7 +314,7 @@ setUsers(formattedUsers);
               </Col>
               <Col span={12}>
                 <Form.Item label="User" name="user">
-                  <Select placeholder="Select User">
+                  <Select placeholder="Select User" style={{ width: 300 }}>
                     {users.map((u) => (
                       <Select.Option key={u.user} value={u.user}>
                         {u.user}
@@ -321,7 +325,7 @@ setUsers(formattedUsers);
               </Col>
               <Col span={12}>
                 <Form.Item label="Origin Code" name="originCode">
-                  <Select placeholder="Select Code">
+                  <Select placeholder="Select Code" style={{ width: 300 }}>
                     {[...originCodes].map((code) => (
                       <Select.Option key={code} value={code.split(" ")[0]}>
                         {code}

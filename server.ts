@@ -49,8 +49,8 @@ app.get('/api/users', async (req, res) => {
     const connection = await mysql.createConnection(dbConfig);
     console.log("DB Connected");
 
-    const [rows] = await connection.execute('SELECT `username` FROM broan.`ab_user`');
-    console.log("Query executed. Result:", rows);
+    const [rows] = await connection.execute('SELECT `username` FROM `ab_user`');
+    // console.log("Query executed. Result:", rows);
 
     await connection.end();
     console.log("🔌 Connection closed");
