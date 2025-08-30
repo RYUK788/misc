@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { useState, useEffect } from "react";
 import {
   Col,
@@ -13,61 +14,70 @@ import {
 import moment from "moment";
 import type { Moment } from "moment";
 import { CalendarOutlined } from "@ant-design/icons";
-import originCodes from "./originCodes";
+import { fetchData } from "../../api.js";
+import originCodes from "../originCodes.js";
 
-
-
-
+// Helper to build SQL insert query string for legacy API
 function sqlValue(val: string, isPercent = false) {
   if (!val || val.trim() === "") return "NULL";
   if (isPercent) {
     // Remove % and spaces, then return as number string
-    return `'${val.replace(/[%\s]/g, "")}'`;
+    return "'" + val.replace(/[%\s]/g, "") + "'";
   }
-  return `'${val}'`;
+  return "'" + val + "'";
 }
+
 function buildInsertQuery(values: OriginTestResultsValues) {
   return `INSERT INTO Origin_Testing (
     \`Date\`, \`User\`, \`Load_Number\`, \`Origin\`, \`grams_per_quart\`, \`lbs_per_cubic_foot\`,
     \`8Mesh\`, \`14Mesh\`, \`16Mesh\`, \`20Mesh\`, \`30Mesh\`, \`40Mesh\`, \`50Mesh\`, \`Pan\`,
     \`total_grams\`, \`total_percent\`, \`force_to_break_grams\`, \`force_to_break_lbs\`
   ) VALUES (
-    \'${values.date.format("YYYY-MM-DD")}\',
-    \'${values.user}\',
-    \'${values.loadNumber}\',
-    \'${values.originCode}\',
-    ${sqlValue(values.gramsPerQuart,true)},
-    ${sqlValue(values.lbsPerCubicFoot,true)},
-    ${sqlValue(values.percent8Mesh,true)},
-    ${sqlValue(values.percent14Mesh,true)},
-    ${sqlValue(values.percent16Mesh,true)},
-    ${sqlValue(values.percent20Mesh,true)},
-    ${sqlValue(values.percent30Mesh,true)},
-    ${sqlValue(values.percent40Mesh,true)},
-    ${sqlValue(values.percent50Mesh),true},
-    ${sqlValue(values.percentPan,true)},
+    '${values.date.format("YYYY-MM-DD")}',
+    '${values.user}',
+    '${values.loadNumber}',
+    '${values.originCode}',
+    ${sqlValue(values.gramsPerQuart)},
+    ${sqlValue(values.lbsPerCubicFoot)},
+    ${sqlValue(values.grams8Mesh)},
+    ${sqlValue(values.grams14Mesh)},
+    ${sqlValue(values.grams16Mesh)},
+    ${sqlValue(values.grams20Mesh)},
+    ${sqlValue(values.grams30Mesh)},
+    ${sqlValue(values.grams40Mesh)},
+    ${sqlValue(values.grams50Mesh)},
+    ${sqlValue(values.gramsBottomPan)},
     ${sqlValue(values.totalGrams)},
     ${sqlValue(values.totalPercent, true)},
     ${sqlValue(values.forceToBreakGrams)},
     ${sqlValue(values.forceToBreakLbs)}
-  );`;
+  );
+`;
 }
-
 
 // --- Mocked Utility Functions ---
 const withToasts =
   <P extends object>(Component: React.ComponentType<P>) =>
   (props: P) =>
     <Component {...props} />; // Mock HOC
-// Removed fetchData. Use real API call in onSubmitForm.
-// -------------------------------------------------------------------
+
+// UPDATED STYLE: Colors are updated based on the reference file provided.
+const componentColors = {
+  sectionHeaderBg: "#1C2444",
+  sectionHeaderText: "white",
+  appBackground: "white",
+  readOnlyBackground: "#f5f5f5",
+  readOnlyText: "#666",
+  buttonPrimary: "#1C2444",
+  buttonText: "white",
+};
 
 // Custom component for the grey section headers
 const SectionHeader = ({ title }: { title: string }) => (
   <div
     style={{
-      backgroundColor: "#6c757d",
-      color: "white",
+      backgroundColor: componentColors.sectionHeaderBg,
+      color: componentColors.sectionHeaderText,
       padding: "8px 16px",
       textAlign: "center",
       fontWeight: 500,
@@ -154,31 +164,60 @@ const sieveGramFields = [
 
 function LabResults(props: OriginTestResultsProps) {
   const [form] = Form.useForm<OriginTestResultsValues>();
+   // **1. State for Users**
   const [users, setUsers] = useState<{ user: string }[]>([]);
+  // **1. State for Origin Codes**
+  // const [originCodes, setOriginCodes] = useState<string[]>([]);
 
-  useEffect(() => {
-  const fetchUsers = async () => {
-    try {
-      const response = await fetch("/api/users");
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      console.log("API Response:", data); 
-      // Map the response to match the expected { user: string } structure
-      const formattedUsers = data.map((item: { username: string }) => ({
-      user: item.username,
-      }));
-setUsers(formattedUsers);
-    } catch (error) {
-      console.error("Failed to fetch users:", error);
-      notification.error({
-        message: "Failed to load users",
-        description: "Could not fetch user data from the server. Check console for details.",
-      });
-    }
+  const readOnlyInputStyle = {
+    backgroundColor: componentColors.readOnlyBackground,
+    color: componentColors.readOnlyText,
   };
 
-  fetchUsers();
-}, []);
+  useEffect(() => {
+    // Function to fetch users (existing logic)
+    const fetchUsers = async () => {
+      try {
+        const data = await fetchData(
+          "SELECT `username` FROM `ab_user`"
+        );
+        const formattedUsers = data.map((item: { username: string }) => ({
+          user: item.username,
+        }));
+        setUsers(formattedUsers);
+      } catch (error) {
+        console.error("Failed to fetch users:", error);
+        notification.error({
+          message: "Failed to load users",
+          description:
+            "Could not fetch user data from the server. Check console for details.",
+        });
+      }
+    };
+
+    // **2. Fetch Logic for Origin Codes**
+    // const fetchOriginCodes = async () => {
+    //   try {
+    //     const data = await fetchData("SELECT DISTINCT `DDG Origin` FROM `FOSS_IQX`");
+        
+    //     // **Data is now mapped directly without using new Set()**
+    //     const formattedCodes = data.map((item: { Origin: string }) => item.Origin);
+        
+    //     setOriginCodes(formattedCodes);
+    //   } catch (error) {
+    //     console.error("Failed to fetch origin codes:", error);
+    //     notification.error({
+    //       message: "Failed to load origin codes",
+    //       description:
+    //         "Could not fetch origin code data from the server. Check console for details.",
+    //     });
+    //   }
+    // };
+
+    // **4. Call both fetch functions on component mount**
+    fetchUsers();
+    // fetchOriginCodes();
+  }, []);
 
   const openNotification = (placement: any) => {
     notification.success({
@@ -187,10 +226,9 @@ setUsers(formattedUsers);
     });
   };
 
-  const handleValuesChange = (
-    changedValues: Partial<OriginTestResultsValues>,
-    allValues: OriginTestResultsValues
-  ) => {
+  const handleValuesChange =
+    (changedValues: Partial<OriginTestResultsValues>,
+     allValues: OriginTestResultsValues) => {
     const changedField = Object.keys(changedValues)[0];
 
     if (changedField === "gramsPerQuart") {
@@ -244,22 +282,18 @@ setUsers(formattedUsers);
     try {
       const values = await form.validateFields();
       const insertQuery = buildInsertQuery(values);
-      const response = await fetch("/api/lab-results", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: insertQuery, params: [] }),
-      });
-      const result = await response.json();
+      const result = await fetchData(insertQuery);
+
       console.log("API result:", result);
-      if (result.success) {
-        openNotification("bottomRight");
-        newForm();
-      } else {
-        notification.error({ message: result.error || "Failed to save data" });
-      }
+
+      openNotification("bottomRight");
+      newForm();
     } catch (error) {
       console.log("Validation Failed or Network Error:", error);
-      notification.error({ message: "Network or Validation Error", description: (error && (error as any).message) || String(error) });
+      notification.error({
+        message: "Network or Validation Error",
+        description: (error && (error as any).message) || String(error),
+      });
     }
   };
 
@@ -276,7 +310,7 @@ setUsers(formattedUsers);
       <div
         style={{
           padding: "24px",
-          backgroundColor: "white",
+          backgroundColor: componentColors.appBackground,
           minHeight: "100vh",
         }}
       >
@@ -284,7 +318,7 @@ setUsers(formattedUsers);
           style={{
             maxWidth: "1200px",
             margin: "0 auto",
-            backgroundColor: "white",
+            backgroundColor: componentColors.appBackground,
             padding: "24px",
             borderRadius: "8px",
             boxShadow: "none",
@@ -299,7 +333,7 @@ setUsers(formattedUsers);
             onValuesChange={handleValuesChange}
           >
             <h1 style={{ textAlign: "center", marginBottom: "24px" }}>
-              Origin Results Form
+              Origin Test Result Form
             </h1>
 
             {/* --- General Information --- */}
@@ -324,9 +358,15 @@ setUsers(formattedUsers);
                 </Form.Item>
               </Col>
               <Col span={12}>
+                {/* **5. Updated Dropdown for Origin Code** */}
                 <Form.Item label="Origin Code" name="originCode">
                   <Select placeholder="Select Code" style={{ width: 300 }}>
-                    {[...originCodes].map((code) => (
+                    {/* {originCodes.map((code) => (
+                      <Select.Option key={code} value={code}> // JUST UNCOMMENT THIS CODE TO MAP ORIGIN CODES FETCHED FROM TABLE
+                        {code}
+                      </Select.Option>
+                    ))} */}
+                      {[...originCodes].map((code) => (
                       <Select.Option key={code} value={code.split(" ")[0]}>
                         {code}
                       </Select.Option>
@@ -354,10 +394,7 @@ setUsers(formattedUsers);
               </Col>
               <Col span={12}>
                 <Form.Item label="Lbs per Cubic Foot" name="lbsPerCubicFoot">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
               </Col>
             </Row>
@@ -375,10 +412,7 @@ setUsers(formattedUsers);
               </Col>
               <Col span={12}>
                 <Form.Item label="Force to Break (Lbs)" name="forceToBreakLbs">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
               </Col>
             </Row>
@@ -412,66 +446,36 @@ setUsers(formattedUsers);
                   <Input type="number" placeholder="XXX.X" />
                 </Form.Item>
                 <Form.Item label="Total Grams" name="totalGrams">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
               </Col>
               <Col span={12}>
                 <Form.Item label="8 Mesh %" name="percent8Mesh">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="14 Mesh %" name="percent14Mesh">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="16 Mesh %" name="percent16Mesh">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="20 Mesh %" name="percent20Mesh">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="30 Mesh %" name="percent30Mesh">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="40 Mesh %" name="percent40Mesh">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="50 Mesh %" name="percent50Mesh">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="Pan %" name="percentPan">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="Total % Check" name="totalPercent">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
               </Col>
             </Row>
@@ -488,7 +492,10 @@ setUsers(formattedUsers);
                 type="default"
                 size="large"
                 onClick={newForm}
-                style={{ backgroundColor: "#454E7C", color: "white" }}
+                style={{
+                  backgroundColor: '#1C2444',
+                  color: 'white',
+                }}
               >
                 New
               </AntButton>
@@ -496,7 +503,11 @@ setUsers(formattedUsers);
                 <AntButton
                   type="default"
                   size="large"
-                  style={{ marginRight: 8, backgroundColor: "#454E7C", color: "white" }}
+                  style={{
+                    marginRight: 8,
+                    backgroundColor: '#1C2444',
+                    color: 'white',
+                  }}
                   onClick={handleClose}
                 >
                   Close
@@ -505,7 +516,10 @@ setUsers(formattedUsers);
                   type="primary"
                   size="large"
                   onClick={onSubmitForm}
-                  style={{ backgroundColor: "#454E7C", borderColor: "#454E7C" }}
+                  style={{
+                    backgroundColor: '#1C2444',
+                    borderColor: '#1C2444',
+                  }}
                 >
                   Save
                 </AntButton>

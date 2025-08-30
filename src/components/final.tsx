@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { useState, useEffect } from "react";
 import {
   Col,
@@ -13,8 +14,7 @@ import {
 import moment from "moment";
 import type { Moment } from "moment";
 import { CalendarOutlined } from "@ant-design/icons";
-import { fetchData } from 'src/features/Pellet/Apis';
-import originCodes from "./originCodes";
+import { fetchData } from "../api.js";
 
 // Helper to build SQL insert query string for legacy API
 function sqlValue(val: string, isPercent = false) {
@@ -25,6 +25,7 @@ function sqlValue(val: string, isPercent = false) {
   }
   return `'${val}'`;
 }
+
 function buildInsertQuery(values: OriginTestResultsValues) {
   return `INSERT INTO Origin_Testing (
     \`Date\`, \`User\`, \`Load_Number\`, \`Origin\`, \`grams_per_quart\`, \`lbs_per_cubic_foot\`,
@@ -57,15 +58,24 @@ const withToasts =
   <P extends object>(Component: React.ComponentType<P>) =>
   (props: P) =>
     <Component {...props} />; // Mock HOC
-// Removed fetchData. Use real API call in onSubmitForm.
-// -------------------------------------------------------------------
+
+// UPDATED STYLE: Colors are updated based on the reference file provided.
+const componentColors = {
+  sectionHeaderBg: "#1C2444",
+  sectionHeaderText: "white",
+  appBackground: "white",
+  readOnlyBackground: "#f5f5f5",
+  readOnlyText: "#666",
+  buttonPrimary: "#1C2444",
+  buttonText: "white",
+};
 
 // Custom component for the grey section headers
 const SectionHeader = ({ title }: { title: string }) => (
   <div
     style={{
-      backgroundColor: "#6c757d",
-      color: "white",
+      backgroundColor: componentColors.sectionHeaderBg,
+      color: componentColors.sectionHeaderText,
       padding: "8px 16px",
       textAlign: "center",
       fontWeight: 500,
@@ -153,12 +163,20 @@ const sieveGramFields = [
 function LabResults(props: OriginTestResultsProps) {
   const [form] = Form.useForm<OriginTestResultsValues>();
   const [users, setUsers] = useState<{ user: string }[]>([]);
+  // **1. State for Origin Codes**
+  const [originCodes, setOriginCodes] = useState<string[]>([]);
+
+  const readOnlyInputStyle = {
+    backgroundColor: componentColors.readOnlyBackground,
+    color: componentColors.readOnlyText,
+  };
 
   useEffect(() => {
+    // Function to fetch users (existing logic)
     const fetchUsers = async () => {
       try {
         const data = await fetchData(
-          "SELECT `username` FROM broan.`ab_user`"
+          "SELECT `username` FROM `ab_user`"
         );
         const formattedUsers = data.map((item: { username: string }) => ({
           user: item.username,
@@ -174,7 +192,28 @@ function LabResults(props: OriginTestResultsProps) {
       }
     };
 
+    // **2. Fetch Logic for Origin Codes**
+    const fetchOriginCodes = async () => {
+      try {
+        const data = await fetchData("SELECT DISTINCT Origin FROM `Origin_Testing`");
+        
+        // **Data is now mapped directly without using new Set()**
+        const formattedCodes = data.map((item: { Origin: string }) => item.Origin);
+        
+        setOriginCodes(formattedCodes);
+      } catch (error) {
+        console.error("Failed to fetch origin codes:", error);
+        notification.error({
+          message: "Failed to load origin codes",
+          description:
+            "Could not fetch origin code data from the server. Check console for details.",
+        });
+      }
+    };
+
+    // **4. Call both fetch functions on component mount**
     fetchUsers();
+    fetchOriginCodes();
   }, []);
 
   const openNotification = (placement: any) => {
@@ -245,12 +284,8 @@ function LabResults(props: OriginTestResultsProps) {
 
       console.log("API result:", result);
 
-      if (result.success) {
-        openNotification("bottomRight");
-        newForm();
-      } else {
-        notification.error({ message: result.error || "Failed to save data" });
-      }
+      openNotification("bottomRight");
+      newForm();
     } catch (error) {
       console.log("Validation Failed or Network Error:", error);
       notification.error({
@@ -273,7 +308,7 @@ function LabResults(props: OriginTestResultsProps) {
       <div
         style={{
           padding: "24px",
-          backgroundColor: "white",
+          backgroundColor: componentColors.appBackground,
           minHeight: "100vh",
         }}
       >
@@ -281,7 +316,7 @@ function LabResults(props: OriginTestResultsProps) {
           style={{
             maxWidth: "1200px",
             margin: "0 auto",
-            backgroundColor: "white",
+            backgroundColor: componentColors.appBackground,
             padding: "24px",
             borderRadius: "8px",
             boxShadow: "none",
@@ -296,7 +331,7 @@ function LabResults(props: OriginTestResultsProps) {
             onValuesChange={handleValuesChange}
           >
             <h1 style={{ textAlign: "center", marginBottom: "24px" }}>
-              LAB Form
+              Origin Test Result Form
             </h1>
 
             {/* --- General Information --- */}
@@ -321,10 +356,11 @@ function LabResults(props: OriginTestResultsProps) {
                 </Form.Item>
               </Col>
               <Col span={12}>
+                {/* **5. Updated Dropdown for Origin Code** */}
                 <Form.Item label="Origin Code" name="originCode">
                   <Select placeholder="Select Code" style={{ width: 300 }}>
-                    {[...originCodes].map((code) => (
-                      <Select.Option key={code} value={code.split(" ")[0]}>
+                    {originCodes.map((code) => (
+                      <Select.Option key={code} value={code}>
                         {code}
                       </Select.Option>
                     ))}
@@ -351,10 +387,7 @@ function LabResults(props: OriginTestResultsProps) {
               </Col>
               <Col span={12}>
                 <Form.Item label="Lbs per Cubic Foot" name="lbsPerCubicFoot">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
               </Col>
             </Row>
@@ -372,10 +405,7 @@ function LabResults(props: OriginTestResultsProps) {
               </Col>
               <Col span={12}>
                 <Form.Item label="Force to Break (Lbs)" name="forceToBreakLbs">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
               </Col>
             </Row>
@@ -409,66 +439,36 @@ function LabResults(props: OriginTestResultsProps) {
                   <Input type="number" placeholder="XXX.X" />
                 </Form.Item>
                 <Form.Item label="Total Grams" name="totalGrams">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
               </Col>
               <Col span={12}>
                 <Form.Item label="8 Mesh %" name="percent8Mesh">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="14 Mesh %" name="percent14Mesh">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="16 Mesh %" name="percent16Mesh">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="20 Mesh %" name="percent20Mesh">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="30 Mesh %" name="percent30Mesh">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="40 Mesh %" name="percent40Mesh">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="50 Mesh %" name="percent50Mesh">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="Pan %" name="percentPan">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
                 <Form.Item label="Total % Check" name="totalPercent">
-                  <Input
-                    readOnly
-                    style={{ backgroundColor: "#f5f5f5", color: "#666" }}
-                  />
+                  <Input readOnly style={readOnlyInputStyle} />
                 </Form.Item>
               </Col>
             </Row>
@@ -485,7 +485,10 @@ function LabResults(props: OriginTestResultsProps) {
                 type="default"
                 size="large"
                 onClick={newForm}
-                style={{ backgroundColor: "#454E7C", color: "white" }}
+                style={{
+                  backgroundColor: '#1C2444',
+                  color: 'white',
+                }}
               >
                 New
               </AntButton>
@@ -493,7 +496,11 @@ function LabResults(props: OriginTestResultsProps) {
                 <AntButton
                   type="default"
                   size="large"
-                  style={{ marginRight: 8, backgroundColor: "#454E7C", color: "white" }}
+                  style={{
+                    marginRight: 8,
+                    backgroundColor: '#1C2444',
+                    color: 'white',
+                  }}
                   onClick={handleClose}
                 >
                   Close
@@ -502,7 +509,10 @@ function LabResults(props: OriginTestResultsProps) {
                   type="primary"
                   size="large"
                   onClick={onSubmitForm}
-                  style={{ backgroundColor: "#454E7C", borderColor: "#454E7C" }}
+                  style={{
+                    backgroundColor: '#1C2444',
+                    borderColor: '#1C2444',
+                  }}
                 >
                   Save
                 </AntButton>
